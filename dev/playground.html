@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transcribe API — Dev</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0f1419;
+      --card: #1a2332;
+      --border: #2d3a4f;
+      --text: #e7ecf3;
+      --muted: #8b9cb3;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --ok: #22c55e;
+      --warn: #f59e0b;
+      --err: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+    .wrap { max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 1.5rem; margin: 0 0 0.25rem; }
+    .sub { color: var(--muted); margin-bottom: 1.5rem; font-size: 0.95rem; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+    label {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+    input, select {
+      width: 100%;
+      padding: 0.65rem 0.75rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      margin-bottom: 1rem;
+      font-size: 0.95rem;
+    }
+    input[type="file"] { padding: 0.5rem; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 600px) { .row { grid-template-columns: 1fr; } }
+    button {
+      width: 100%;
+      padding: 0.85rem 1rem;
+      border: none;
+      border-radius: 8px;
+      background: var(--accent);
+      color: white;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover:not(:disabled) { background: var(--accent-hover); }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+      margin-bottom: 0.75rem;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--muted);
+      flex-shrink: 0;
+    }
+    .dot.ok { background: var(--ok); }
+    .dot.warn { background: var(--warn); }
+    .dot.err { background: var(--err); }
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .meta div {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.65rem 0.75rem;
+      font-size: 0.85rem;
+    }
+    .meta strong { display: block; color: var(--muted); font-weight: 500; font-size: 0.75rem; }
+    textarea {
+      width: 100%;
+      min-height: 180px;
+      padding: 0.85rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.95rem;
+      line-height: 1.5;
+      resize: vertical;
+    }
+    .error {
+      color: var(--err);
+      font-size: 0.9rem;
+      margin-top: 0.5rem;
+      white-space: pre-wrap;
+    }
+    .hint {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Transcribe API — Dev</h1>
+    <p class="sub">Envie um áudio e veja a transcrição antes de subir na VPS.</p>
+
+    <div class="card">
+      <label for="apiKey">API Key (mesmo valor do .env)</label>
+      <input id="apiKey" type="password" placeholder="dev-local-key" />
+
+      <div class="row">
+        <div>
+          <label for="userId">User ID</label>
+          <input id="userId" value="dev_user_1" />
+        </div>
+        <div>
+          <label for="source">Origem</label>
+          <select id="source">
+            <option value="other">other</option>
+            <option value="whatsapp">whatsapp</option>
+            <option value="recording">recording</option>
+          </select>
+        </div>
+      </div>
+
+      <label for="audioFile">Arquivo de áudio</label>
+      <input id="audioFile" type="file" accept=".ogg,.mp3,.m4a,.wav,.webm,.opus,.aac,.flac,audio/*" />
+
+      <button id="submitBtn" type="button">Transcrever</button>
+      <p class="hint">Formatos: ogg, mp3, m4a, wav, webm. Requer ffmpeg instalado.</p>
+      <p id="formError" class="error" hidden></p>
+    </div>
+
+    <div class="card" id="resultCard" hidden>
+      <div class="status">
+        <span class="dot" id="statusDot"></span>
+        <span id="statusText">—</span>
+      </div>
+      <div class="meta">
+        <div><strong>Job ID</strong><span id="jobId">—</span></div>
+        <div><strong>Modelo</strong><span id="modelName">—</span></div>
+        <div><strong>Duração</strong><span id="duration">—</span></div>
+        <div><strong>Processamento</strong><span id="processing">—</span></div>
+      </div>
+      <label for="transcript">Transcrição</label>
+      <textarea id="transcript" readonly placeholder="O texto aparece aqui quando concluir..."></textarea>
+      <p id="jobError" class="error" hidden></p>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    const apiKeyInput = $("apiKey");
+    const userIdInput = $("userId");
+    const sourceInput = $("source");
+    const fileInput = $("audioFile");
+    const submitBtn = $("submitBtn");
+    const formError = $("formError");
+    const resultCard = $("resultCard");
+    const statusDot = $("statusDot");
+    const statusText = $("statusText");
+    const jobIdEl = $("jobId");
+    const modelNameEl = $("modelName");
+    const durationEl = $("duration");
+    const processingEl = $("processing");
+    const transcriptEl = $("transcript");
+    const jobError = $("jobError");
+
+    apiKeyInput.value = localStorage.getItem("transcribe_dev_api_key") || "dev-local-key";
+
+    function showFormError(msg) {
+      formError.hidden = !msg;
+      formError.textContent = msg || "";
+    }
+
+    function setStatus(status) {
+      statusText.textContent = status;
+      statusDot.className = "dot";
+      if (status === "completed") statusDot.classList.add("ok");
+      else if (status === "failed") statusDot.classList.add("err");
+      else statusDot.classList.add("warn");
+    }
+
+    function formatSeconds(value) {
+      if (value == null) return "—";
+      return `${Number(value).toFixed(1)}s`;
+    }
+
+    async function pollJob(jobId, apiKey) {
+      for (let i = 0; i < 600; i++) {
+        const res = await fetch(`/v1/jobs/${jobId}`, {
+          headers: { Authorization: `Bearer ${apiKey}` },
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || `Erro ao consultar job (${res.status})`);
+        }
+
+        const job = await res.json();
+        setStatus(job.status);
+        jobIdEl.textContent = job.job_id;
+        modelNameEl.textContent = job.model || "—";
+        durationEl.textContent = formatSeconds(job.duration_seconds);
+        processingEl.textContent = formatSeconds(job.processing_time_seconds);
+
+        if (job.status === "completed") {
+          transcriptEl.value = job.text || "";
+          jobError.hidden = true;
+          return;
+        }
+
+        if (job.status === "failed") {
+          jobError.hidden = false;
+          jobError.textContent = job.error_message || "Transcrição falhou";
+          return;
+        }
+
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+
+      throw new Error("Timeout: transcrição demorou demais");
+    }
+
+    submitBtn.addEventListener("click", async () => {
+      showFormError("");
+      jobError.hidden = true;
+
+      const apiKey = apiKeyInput.value.trim();
+      const userId = userIdInput.value.trim();
+      const file = fileInput.files[0];
+
+      if (!apiKey) return showFormError("Informe a API Key.");
+      if (!userId) return showFormError("Informe o User ID.");
+      if (!file) return showFormError("Selecione um arquivo de áudio.");
+
+      localStorage.setItem("transcribe_dev_api_key", apiKey);
+
+      const form = new FormData();
+      form.append("file", file);
+      form.append("user_id", userId);
+      form.append("source", sourceInput.value);
+
+      submitBtn.disabled = true;
+      resultCard.hidden = false;
+      transcriptEl.value = "";
+      setStatus("enviando...");
+
+      try {
+        const res = await fetch("/v1/transcribe", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}` },
+          body: form,
+        });
+
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(body.detail || `Erro ao enviar (${res.status})`);
+        }
+
+        setStatus(body.status || "queued");
+        jobIdEl.textContent = body.job_id;
+        await pollJob(body.job_id, apiKey);
+      } catch (err) {
+        setStatus("failed");
+        jobError.hidden = false;
+        jobError.textContent = err.message || String(err);
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

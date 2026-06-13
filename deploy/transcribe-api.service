@@ -1,0 +1,19 @@
+[Unit]
+Description=Transcribe API
+After=network.target
+
+[Service]
+Type=simple
+User=deploy
+Group=deploy
+WorkingDirectory=/opt/transcribe-api
+EnvironmentFile=/opt/transcribe-api/.env
+ExecStart=/opt/transcribe-api/.venv/bin/python -m app.main
+Restart=on-failure
+RestartSec=5
+
+# Whisper + ffmpeg can be memory-heavy on a 4 GB VPS
+MemoryMax=3G
+
+[Install]
+WantedBy=multi-user.target
