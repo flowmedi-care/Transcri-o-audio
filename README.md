@@ -70,6 +70,7 @@ Copie [`.env.example`](.env.example) para `.env`.
 
 ## Documentação
 
+- **[Integração no SaaS](docs/SAAS-INTEGRATION.md)** — passo a passo para colar no projeto do SaaS e pedir à IA integrar
 - **[Uso da API](docs/API.md)** — autenticação, exemplos, polling, erros
 - **[Deploy na VPS](docs/DEPLOY-VPS.md)** — passo a passo Linux, DNS, HTTPS
 
