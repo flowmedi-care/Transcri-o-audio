@@ -2,7 +2,8 @@ import json
 import subprocess
 from pathlib import Path
 
-ALLOWED_EXTENSIONS = {".ogg", ".mp3", ".m4a", ".wav", ".webm", ".opus", ".aac", ".flac"}
+# .bin — WhatsApp often sends audio/ogg as application/octet-stream with a .bin filename
+ALLOWED_EXTENSIONS = {".ogg", ".mp3", ".m4a", ".wav", ".webm", ".opus", ".aac", ".flac", ".bin"}
 
 
 class AudioValidationError(Exception):

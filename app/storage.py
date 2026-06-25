@@ -32,6 +32,7 @@ class SupabaseStorage:
         status: str,
     ) -> None:
         if not self.enabled:
+            logger.debug("[Transcribe] supabase disabled — skip create job=%s", job_id)
             return
 
         payload = {
@@ -41,6 +42,7 @@ class SupabaseStorage:
             "model": model,
             "status": status,
         }
+        logger.info("[Transcribe] supabase create job=%s status=%s user_id=%s", job_id, status, user_id)
         await self._post("transcription_jobs", payload)
 
     async def update_job(self, job_id: str, fields: dict[str, Any]) -> None:
@@ -50,6 +52,11 @@ class SupabaseStorage:
         if not self.settings.save_transcript and "transcript" in fields:
             fields = {key: value for key, value in fields.items() if key != "transcript"}
 
+        logger.info(
+            "[Transcribe] supabase update job=%s fields=%s",
+            job_id,
+            ",".join(sorted(fields.keys())),
+        )
         await self._patch(f"transcription_jobs?id=eq.{job_id}", fields)
 
     async def get_metrics_summary(self) -> list[dict[str, Any]]:

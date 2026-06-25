@@ -40,6 +40,10 @@ class HealthResponse(BaseModel):
     status: str = "ok"
     model: str
     queue_pending: int = 0
+    queue_queued: int = 0
+    queue_processing: int = 0
+    worker_running: bool = True
+    supabase_enabled: bool = False
 
 
 class UserMetricsSummary(BaseModel):

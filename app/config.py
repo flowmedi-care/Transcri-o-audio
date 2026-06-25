@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -31,7 +31,13 @@ class Settings(BaseSettings):
     temp_dir: Path = Field(default=Path("./data/tmp"), validation_alias="TEMP_DIR")
 
     supabase_url: str = Field(default="", validation_alias="SUPABASE_URL")
-    supabase_service_key: str = Field(default="", validation_alias="SUPABASE_SERVICE_KEY")
+    supabase_service_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("SUPABASE_SERVICE_KEY", "SUPABASE_SERVICE_ROLE_KEY"),
+    )
+
+    log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
+    stale_job_minutes: int = Field(default=10, validation_alias="STALE_JOB_MINUTES")
 
     save_audio: bool = Field(default=False, validation_alias="SAVE_AUDIO")
     save_transcript: bool = Field(default=False, validation_alias="SAVE_TRANSCRIPT")

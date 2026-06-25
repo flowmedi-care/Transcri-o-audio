@@ -16,6 +16,14 @@ fi
 echo "==> Health check (no auth)"
 curl -fsS "${BASE_URL}/health" | python3 -m json.tool
 
+echo "==> Worker / queue diagnostics"
+HEALTH_JSON=$(curl -fsS "${BASE_URL}/health")
+WORKER_OK=$(echo "$HEALTH_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print('yes' if d.get('worker_running') else 'no')")
+PENDING=$(echo "$HEALTH_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('queue_pending',0))")
+if [[ "$WORKER_OK" != "yes" && "$PENDING" != "0" ]]; then
+  echo "WARNING: queue_pending=$PENDING but worker_running=false — restart transcribe-api"
+fi
+
 echo "==> Auth check (expect 404 for missing job — means auth passed)"
 HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
   -H "Authorization: Bearer ${API_KEY}" \

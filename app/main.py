@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import logging
 from pathlib import Path
 from typing import Optional
 
@@ -9,6 +10,7 @@ from fastapi.responses import FileResponse
 from app.audio_utils import AudioValidationError
 from app.auth import verify_api_key
 from app.config import Settings, get_settings
+from app.logging_config import setup_logging
 from app.models import (
     AudioSource,
     HealthResponse,
@@ -20,12 +22,18 @@ from app.models import (
 )
 from app.queue import JobQueue, RateLimitError, get_queue
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    settings = get_settings()
+    setup_logging(settings.log_level)
+    logger.info("[Transcribe] API starting host=%s port=%s", settings.host, settings.port)
     queue = get_queue()
     await queue.start()
     yield
+    logger.info("[Transcribe] API shutting down")
     await queue.stop()
 
 
@@ -83,8 +91,21 @@ async def health(
     settings: Settings = Depends(get_settings),
     queue: JobQueue = Depends(get_queue),
 ) -> HealthResponse:
-    pending = await queue.pending_count()
-    return HealthResponse(status="ok", model=settings.whisper_model, queue_pending=pending)
+    stats = await queue.get_stats()
+    if stats.pending > 0 and not stats.worker_running:
+        logger.error(
+            "[Transcribe] health alert: %s pending jobs but worker is not running",
+            stats.pending,
+        )
+    return HealthResponse(
+        status="ok",
+        model=settings.whisper_model,
+        queue_pending=stats.pending,
+        queue_queued=stats.queued,
+        queue_processing=stats.processing,
+        worker_running=stats.worker_running,
+        supabase_enabled=settings.supabase_enabled,
+    )
 
 
 @app.post(
@@ -114,9 +135,18 @@ async def transcribe(
             raw_bytes=raw_bytes,
         )
     except RateLimitError as exc:
+        logger.warning("[Transcribe] enqueue rate_limited user_id=%s", user_id)
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(exc)) from exc
     except AudioValidationError as exc:
+        logger.warning("[Transcribe] enqueue validation_failed user_id=%s error=%s", user_id, exc)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    logger.info(
+        "[Transcribe] POST /v1/transcribe accepted job_id=%s user_id=%s source=%s",
+        result.job_id,
+        user_id,
+        source.value if source else None,
+    )
 
     return TranscribeAcceptedResponse(
         job_id=result.job_id,
@@ -133,7 +163,22 @@ async def get_job(
 ) -> JobResponse:
     job = await queue.get_job(job_id)
     if job is None:
+        logger.warning("[Transcribe] poll job_id=%s not_found", job_id)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+
+    status_value = job["status"]
+    text_preview = ""
+    if status_value == JobStatus.COMPLETED.value and job.get("transcript"):
+        text_preview = f" text_len={len(job['transcript'])}"
+    elif job.get("error_message"):
+        text_preview = f" error={str(job['error_message'])[:80]}"
+
+    logger.info(
+        "[Transcribe] poll job_id=%s status=%s%s",
+        job_id,
+        status_value,
+        text_preview,
+    )
     return _job_to_response(job)
 
 
